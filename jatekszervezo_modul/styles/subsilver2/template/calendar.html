@@ -1,0 +1,285 @@
+<!-- INCLUDE overall_header.html -->
+
+<!-- IF S_FORUM_RULES -->
+	<div class="forumrules">
+		<!-- IF U_FORUM_RULES -->
+			<h3>{L_FORUM_RULES}</h3><br />
+			<a href="{U_FORUM_RULES}"><b>{L_FORUM_RULES_LINK}</b></a>
+		<!-- ELSE -->
+			<h3>{L_FORUM_RULES}</h3><br />
+			{FORUM_RULES}
+		<!-- ENDIF -->
+	</div>
+
+	<br clear="all" />
+<!-- ENDIF -->
+
+<div id="pageheader">
+	<h2><a class="titles" href="{U_VIEW_TOPIC}">{TOPIC_TITLE}</a></h2>
+
+<!-- IF MODERATORS -->
+	<p class="moderators"><!-- IF S_SINGLE_MODERATOR -->{L_MODERATOR}<!-- ELSE -->{L_MODERATORS}<!-- ENDIF -->: {MODERATORS}</p>
+<!-- ENDIF -->
+<!-- IF U_MCP -->
+	<p class="linkmcp">[ <a href="{U_MCP}">{L_MCP}</a> ]</p>
+<!-- ENDIF -->
+</div>
+
+<br clear="all" /><br />
+
+<div id="pagecontent">
+
+	<table width="100%" cellspacing="1">
+	<tr>
+		<td align="{S_CONTENT_FLOW_BEGIN}" valign="middle" nowrap="nowrap">
+		<!-- IF not S_IS_BOT -->
+			<!-- IF S_DISPLAY_POST_INFO --><a href="{U_POST_NEW_TOPIC}">{POST_IMG}</a>&nbsp;<!-- ENDIF -->
+			<!-- IF S_DISPLAY_REPLY_INFO --><a href="{U_POST_REPLY_TOPIC}">{REPLY_IMG}</a><!-- ENDIF -->
+		<!-- ENDIF -->
+		</td>
+		<!-- IF TOTAL_POSTS -->
+			<td class="nav" valign="middle" nowrap="nowrap">&nbsp;{PAGE_NUMBER}<br /></td>
+			<td class="gensmall" nowrap="nowrap">&nbsp;[ {TOTAL_POSTS} ]&nbsp;</td>
+			<td class="gensmall" width="100%" align="{S_CONTENT_FLOW_END}" nowrap="nowrap"><!-- INCLUDE pagination.html --></td>
+		<!-- ENDIF -->
+	</tr>
+	</table>
+
+	<table class="tablebg" width="100%" cellspacing="1">
+	<tr>
+		<th class="thHead">J&#225;t&#233;k Napt&#225;r</th>
+	</tr>
+	</table>
+
+	<table class="tablebg" cellspacing="1" width="100%">
+	<tr>
+		<td class="row1" width="20px" align="center" >
+			&#201;v
+		</td>
+		<td class="row1" width="15px" align="center" >
+			H&#243;
+		</td>
+		<td class="row1" width="14%" align="center" >
+			H&#233;tf&#337;
+		</td>
+		<td class="row1" width="14%" align="center" >
+			Kedd
+		</td>
+		<td class="row1" width="14%" align="center" >
+			Szerda
+		</td>
+		<td class="row1" width="14%" align="center" >
+			Cs&#252;t&#246;rt&#246;k
+		</td>
+		<td class="row1" width="14%" align="center" >
+			P&#233;ntek
+		</td>
+		<td class="row1" width="14%" align="center" >
+			Szombat
+		</td>
+		<td class="row1" width="14%" align="center" >
+			Vas&#225;rnap
+		</td>
+	</tr>
+	<!-- BEGIN dayz -->
+	<tr height="160px">
+		<td class="row1" >
+			{dayz.YEAR}
+		</td>
+		<td class="row1" >
+			{dayz.MON}
+		</td>
+		<td class="row4" valign="top" >
+			<table class="tablebg" width="100%" cellspacing="0">
+			<tr>
+				<!-- IF (dayz.TODAY eq dayz.DAY0) and (dayz.TOMON eq dayz.MON)--> 
+				<td class="row6" align="right" >
+				<!-- ELSE --> 
+				<td class="row5" align="right" >
+				<!-- ENDIF -->
+					{dayz.DAY0}
+				</td>
+			</tr>
+			<tr >
+				<td class="row1">
+				{dayz.GAMESTRING0}
+				</td>
+			</tr>
+			</table>
+		</td>
+		<td class="row4" valign="top" >
+			<table class="tablebg" width="100%" cellspacing="0">
+			<tr>
+				<!-- IF (dayz.TODAY eq dayz.DAY1) and (dayz.TOMON eq dayz.MON)--> 
+				<td class="row6" align="right" >
+				<!-- ELSE --> 
+				<td class="row5" align="right" >
+				<!-- ENDIF -->
+					{dayz.DAY1}
+				</td>
+			</tr>
+			<tr >
+				<td class="row1">
+				{dayz.GAMESTRING1}
+				</td>
+			</tr>
+			</table>
+		</td>
+		<td class="row4" valign="top" >
+			<table class="tablebg" width="100%" cellspacing="0">
+			<tr>
+				<!-- IF (dayz.TODAY eq dayz.DAY2) and (dayz.TOMON eq dayz.MON)--> 
+				<td class="row6" align="right" >
+				<!-- ELSE --> 
+				<td class="row5" align="right" >
+				<!-- ENDIF -->
+					{dayz.DAY2}
+				</td>
+			</tr>
+			<tr >
+				<td class="row1">
+				{dayz.GAMESTRING2}
+				</td>
+			</tr>
+			</table>
+		</td>
+		<td class="row4" valign="top" >
+			<table class="tablebg" width="100%" cellspacing="0">
+			<tr>
+				<!-- IF (dayz.TODAY eq dayz.DAY3) and (dayz.TOMON eq dayz.MON)--> 
+				<td class="row6" align="right" >
+				<!-- ELSE --> 
+				<td class="row5" align="right" >
+				<!-- ENDIF -->
+					{dayz.DAY3}
+				</td>
+			</tr>
+			<tr >
+				<td class="row1">
+				{dayz.GAMESTRING3}
+				</td>
+			</tr>
+			</table>
+		</td>
+		<td class="row4" valign="top" >
+			<table class="tablebg" width="100%" cellspacing="0">
+			<tr>
+				<!-- IF (dayz.TODAY eq dayz.DAY4) and (dayz.TOMON eq dayz.MON)--> 
+				<td class="row6" align="right" >
+				<!-- ELSE --> 
+				<td class="row5" align="right" >
+				<!-- ENDIF -->
+					{dayz.DAY4}
+				</td>
+			</tr>
+			<tr >
+				<td class="row1">
+				{dayz.GAMESTRING4}
+				</td>
+			</tr>
+			</table>
+		</td>
+		<td class="row4" valign="top" >
+			<table class="tablebg" width="100%" cellspacing="0">
+			<tr>
+				<!-- IF (dayz.TODAY eq dayz.DAY5) and (dayz.TOMON eq dayz.MON)--> 
+				<td class="row6" align="right" >
+				<!-- ELSE --> 
+				<td class="row5" align="right" >
+				<!-- ENDIF -->
+					{dayz.DAY5}
+				</td>
+			</tr>
+			<tr >
+				<td class="row1">
+				{dayz.GAMESTRING5}
+				</td>
+			</tr>
+			</table>
+		</td>
+		<td class="row4" valign="top" >
+			<table class="tablebg" width="100%" cellspacing="0">
+			<tr>
+				<!-- IF (dayz.TODAY eq dayz.DAY6) and (dayz.TOMON eq dayz.MON)--> 
+				<td class="row6" align="right" >
+				<!-- ELSE --> 
+				<td class="row5" align="right" >
+				<!-- ENDIF -->
+					{dayz.DAY6}
+				</td>
+			</tr>
+			<tr >
+				<td class="row1">
+				{dayz.GAMESTRING6}
+				</td>
+			</tr>
+			</table>
+		</td>
+	</tr>
+	<!-- END dayz -->
+	</table>
+
+	<!-- IF not S_IS_BOT -->
+	<table width="100%" cellspacing="1" class="tablebg">
+	<tr align="center">
+		<th class="thHead"></th>
+	</tr>
+	</table>
+	<!-- ENDIF -->
+
+	<table width="100%" cellspacing="1">
+	<tr>
+		<td align="{S_CONTENT_FLOW_BEGIN}" valign="middle" nowrap="nowrap">
+		<!-- IF not S_IS_BOT -->
+			<!-- IF S_DISPLAY_POST_INFO --><a href="{U_POST_NEW_TOPIC}">{POST_IMG}</a>&nbsp;<!-- ENDIF -->
+			<!-- IF S_DISPLAY_REPLY_INFO --><a href="{U_POST_REPLY_TOPIC}">{REPLY_IMG}</a><!-- ENDIF -->
+		<!-- ENDIF -->
+		</td>
+		<!-- IF TOTAL_POSTS -->
+			<td class="nav" valign="middle" nowrap="nowrap">&nbsp;{PAGE_NUMBER}<br /></td>
+			<td class="gensmall" nowrap="nowrap">&nbsp;[ {TOTAL_POSTS} ]&nbsp;</td>
+			<td class="gensmall" width="100%" align="{S_CONTENT_FLOW_END}" nowrap="nowrap"><!-- INCLUDE pagination.html --></td>
+		<!-- ENDIF -->
+	</tr>
+	</table>
+
+</div>
+
+<div id="pagefooter"></div>
+
+<br clear="all" />
+
+<!-- INCLUDE breadcrumbs.html -->
+
+<!-- IF S_DISPLAY_ONLINE_LIST -->
+	<br clear="all" />
+
+	<table class="tablebg" width="100%" cellspacing="1">
+	<tr>
+		<td class="cat"><h4>{L_WHO_IS_ONLINE}</h4></td>
+	</tr>
+	<tr>
+		<td class="row1"><p class="gensmall">{LOGGED_IN_USER_LIST}</p></td>
+	</tr>
+	</table>
+<!-- ENDIF -->
+
+<br clear="all" />
+
+<table width="100%" cellspacing="1">
+<tr>
+	<td width="40%" valign="top" nowrap="nowrap" align="{S_CONTENT_FLOW_BEGIN}"><!-- IF S_TOPIC_MOD --><form method="post" action="{S_MOD_ACTION}"><span class="gensmall">{L_QUICK_MOD}:</span> {S_TOPIC_MOD} <input class="btnlite" type="submit" value="{L_GO}" /></form><!-- ENDIF --></td>
+	<td align="{S_CONTENT_FLOW_END}" valign="top" nowrap="nowrap"><span class="gensmall"><!-- BEGIN rules -->{rules.RULE}<br /><!-- END rules --></span></td>
+</tr>
+</table>
+
+<br clear="all" />
+
+<table width="100%" cellspacing="0">
+<tr>
+	<td><!-- IF S_DISPLAY_SEARCHBOX --><!-- INCLUDE searchbox.html --><!-- ENDIF --></td>
+	<td align="{S_CONTENT_FLOW_END}"><!-- INCLUDE jumpbox.html --></td>
+</tr>
+</table>
+
+<!-- INCLUDE overall_footer.html -->

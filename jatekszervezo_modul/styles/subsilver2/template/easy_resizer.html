@@ -1,0 +1,23 @@
+<script type="text/javascript">
+    window.onload = resizeimg;
+    function resizeimg()
+    {
+       if (document.getElementsByTagName)
+       {
+          for (i=0; i<document.getElementsByTagName('img').length; i++)
+          {
+             im = document.getElementsByTagName('img')[i];
+             if (im.width > 600)
+             {
+                im.style.width = '600px';
+                eval("pop" + String(i) + " = new Function(\"pop = window.open('" + im.src + " ','fullscale','width=400,height=400,scrollbars=1,resizable=1'); pop.focus();\")");
+                eval("im.onclick = pop" + String(i) + ";");
+                if (document.all) im.style.cursor = 'hand';
+                if (!document.all) im.style.cursor = 'pointer';
+                im.title = 'Ez egy átméretezett kép, kattints ide a teljes mérethez! ';
+             }
+          }
+       }
+    }
+
+    </script>
