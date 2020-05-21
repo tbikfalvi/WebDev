@@ -2,7 +2,7 @@
 /**
 *
 * @package phpBB3
-* @version $Id: viewtopic.php 9470 2009-04-18 17:22:41Z acydburn $
+* @version $Id$
 * @copyright (c) 2005 phpBB Group
 * @license http://opensource.org/licenses/gpl-license.php GNU Public License
 *
@@ -27,6 +27,10 @@ $forum_id	= request_var('f', 0);
 $topic_id	= request_var('t', 0);
 $post_id	= request_var('p', 0);
 $voted_id	= request_var('vote_id', array('' => 0));
+
+$voted_id = (sizeof($voted_id) > 1) ? array_unique($voted_id) : $voted_id;
+
+
 $start		= request_var('start', 0);
 $view		= request_var('view', '');
 
@@ -40,9 +44,7 @@ $sort_dir	= request_var('sd', $default_sort_dir);
 
 $update		= request_var('update', false);
 
-
-
-
+$s_can_vote = false;
 /**
 * @todo normalize?
 */
@@ -84,6 +86,7 @@ if ($view && !$post_id)
 			WHERE topic_id = $topic_id
 				" . (($auth->acl_get('m_approve', $forum_id)) ? '' : 'AND post_approved = 1') . "
 				AND post_time > $topic_last_read
+				AND forum_id = $forum_id
 			ORDER BY post_time ASC";
 		$result = $db->sql_query_limit($sql, 1);
 		$row = $db->sql_fetchrow($result);
@@ -143,7 +146,14 @@ if ($view && !$post_id)
 
 			if (!$row)
 			{
-				$user->setup('viewtopic');
+				$sql = 'SELECT forum_style
+					FROM ' . FORUMS_TABLE . "
+					WHERE forum_id = $forum_id";
+				$result = $db->sql_query($sql);
+				$forum_style = (int) $db->sql_fetchfield('forum_style');
+				$db->sql_freeresult($result);
+
+				$user->setup('viewtopic', $forum_style);
 				trigger_error(($view == 'next') ? 'NO_NEWER_TOPICS' : 'NO_OLDER_TOPICS');
 			}
 			else
@@ -183,9 +193,17 @@ $sql_array = array(
 	'FROM'		=> array(FORUMS_TABLE => 'f'),
 );
 
+// Firebird handles two columns of the same name a little differently, this
+// addresses that by forcing the forum_id to come from the forums table.
+if ($db->sql_layer === 'firebird')
+{
+	$sql_array['SELECT'] = 'f.forum_id AS forum_id, ' . $sql_array['SELECT'];
+}
+
 // The FROM-Order is quite important here, else t.* columns can not be correctly bound.
 if ($post_id)
 {
+	$sql_array['SELECT'] .= ', p.post_approved, p.post_time, p.post_id';
 	$sql_array['FROM'][POSTS_TABLE] = 'p';
 }
 
@@ -233,7 +251,7 @@ if (!$post_id)
 }
 else
 {
-	$sql_array['WHERE'] = "p.post_id = $post_id AND t.topic_id = p.topic_id" . ((!$auth->acl_get('m_approve', $forum_id)) ? ' AND p.post_approved = 1' : '');
+	$sql_array['WHERE'] = "p.post_id = $post_id AND t.topic_id = p.topic_id";
 }
 
 $sql_array['WHERE'] .= ' AND (f.forum_id = t.forum_id';
@@ -261,6 +279,7 @@ $result = $db->sql_query($sql);
 $topic_data = $db->sql_fetchrow($result);
 $db->sql_freeresult($result);
 
+// link to unapproved post or incorrect link
 if (!$topic_data)
 {
 	// If post_id was submitted, we try at least to display the topic as a last resort...
@@ -272,9 +291,21 @@ if (!$topic_data)
 	trigger_error('NO_TOPIC');
 }
 
+$forum_id = (int) $topic_data['forum_id'];
 // This is for determining where we are (page)
 if ($post_id)
 {
+	// are we where we are supposed to be?
+	if (!$topic_data['post_approved'] && !$auth->acl_get('m_approve', $topic_data['forum_id']))
+	{
+		// If post_id was submitted, we try at least to display the topic as a last resort...
+		if ($topic_id)
+		{
+			redirect(append_sid("{$phpbb_root_path}viewtopic.$phpEx", "t=$topic_id" . (($forum_id) ? "&amp;f=$forum_id" : '')));
+		}
+
+		trigger_error('NO_TOPIC');
+	}
 	if ($post_id == $topic_data['topic_first_post_id'] || $post_id == $topic_data['topic_last_post_id'])
 	{
 		$check_sort = ($post_id == $topic_data['topic_first_post_id']) ? 'd' : 'a';
@@ -290,12 +321,19 @@ if ($post_id)
 	}
 	else
 	{
-		$sql = 'SELECT COUNT(p1.post_id) AS prev_posts
-			FROM ' . POSTS_TABLE . ' p1, ' . POSTS_TABLE . " p2
-			WHERE p1.topic_id = {$topic_data['topic_id']}
-				AND p2.post_id = {$post_id}
-				" . ((!$auth->acl_get('m_approve', $forum_id)) ? 'AND p1.post_approved = 1' : '') . '
-				AND ' . (($sort_dir == 'd') ? 'p1.post_time >= p2.post_time' : 'p1.post_time <= p2.post_time');
+		$sql = 'SELECT COUNT(p.post_id) AS prev_posts
+			FROM ' . POSTS_TABLE . " p
+			WHERE p.topic_id = {$topic_data['topic_id']}
+				" . ((!$auth->acl_get('m_approve', $forum_id)) ? 'AND p.post_approved = 1' : '');
+
+		if ($sort_dir == 'd')
+		{
+			$sql .= " AND (p.post_time > {$topic_data['post_time']} OR (p.post_time = {$topic_data['post_time']} AND p.post_id >= {$topic_data['post_id']}))";
+		}
+		else
+		{
+			$sql .= " AND (p.post_time < {$topic_data['post_time']} OR (p.post_time = {$topic_data['post_time']} AND p.post_id <= {$topic_data['post_id']}))";
+		}
 
 		$result = $db->sql_query($sql);
 		$row = $db->sql_fetchrow($result);
@@ -305,9 +343,7 @@ if ($post_id)
 	}
 }
 
-$forum_id = (int) $topic_data['forum_id'];
 $topic_id = (int) $topic_data['topic_id'];
-
 //
 $topic_replies = ($auth->acl_get('m_approve', $forum_id)) ? $topic_data['topic_replies_real'] : $topic_data['topic_replies'];
 
@@ -396,7 +432,8 @@ if (!isset($topic_tracking_info))
 $limit_days = array(0 => $user->lang['ALL_POSTS'], 1 => $user->lang['1_DAY'], 7 => $user->lang['7_DAYS'], 14 => $user->lang['2_WEEKS'], 30 => $user->lang['1_MONTH'], 90 => $user->lang['3_MONTHS'], 180 => $user->lang['6_MONTHS'], 365 => $user->lang['1_YEAR']);
 
 $sort_by_text = array('a' => $user->lang['AUTHOR'], 't' => $user->lang['POST_TIME'], 's' => $user->lang['SUBJECT']);
-$sort_by_sql = array('a' => 'u.username_clean', 't' => 'p.post_time', 's' => 'p.post_subject');
+$sort_by_sql = array('a' => array('u.username_clean', 'p.post_id'), 't' => 'p.post_time', 's' => array('p.post_subject', 'p.post_id'));
+$join_user_sql = array('a' => true, 't' => false, 's' => false);
 
 $s_limit_days = $s_sort_key = $s_sort_dir = $u_sort_param = '';
 
@@ -434,17 +471,11 @@ else
 $highlight_match = $highlight = '';
 if ($hilit_words)
 {
-	foreach (explode(' ', trim($hilit_words)) as $word)
-	{
-		if (trim($word))
-		{
-			$word = str_replace('\*', '\w+?', preg_quote($word, '#'));
-			$word = preg_replace('#(^|\s)\\\\w\*\?(\s|$)#', '$1\w+?$2', $word);
-			$highlight_match .= (($highlight_match != '') ? '|' : '') . $word;
-		}
-	}
-
-	$highlight = urlencode($hilit_words);
+	$highlight_match = phpbb_clean_search_string($hilit_words);
+	$highlight = urlencode($highlight_match);
+	$highlight_match = str_replace('\*', '\w+?', preg_quote($highlight_match, '#'));
+	$highlight_match = preg_replace('#(?<=^|\s)\\\\w\*\?(?=\s|$)#', '\w+?', $highlight_match);
+	$highlight_match = str_replace(' ', '|', $highlight_match);
 }
 
 // Make sure $start is set to the last page if it exceeds the amount
@@ -454,7 +485,7 @@ if ($start < 0 || $start >= $total_posts)
 }
 
 // General Viewtopic URL for return links
-$viewtopic_url = append_sid("{$phpbb_root_path}viewtopic.$phpEx", "f=$forum_id&amp;t=$topic_id&amp;start=$start" . ((strlen($u_sort_param)) ? "&amp;$u_sort_param" : '') . (($highlight_match) ? "&amp;hilit=$highlight" : ''));
+$viewtopic_url = append_sid("{$phpbb_root_path}viewtopic.$phpEx", "f=$forum_id&amp;t=$topic_id" . (($start == 0) ? '' : "&amp;start=$start") . ((strlen($u_sort_param)) ? "&amp;$u_sort_param" : '') . (($highlight_match) ? "&amp;hilit=$highlight" : ''));
 
 // Are we watching this topic?
 $s_watching_topic = array(
@@ -463,9 +494,10 @@ $s_watching_topic = array(
 	'is_watching'	=> false,
 );
 
-if (($config['email_enable'] || $config['jab_enable']) && $config['allow_topic_notify'] && $user->data['is_registered'])
+if (($config['email_enable'] || $config['jab_enable']) && $config['allow_topic_notify'])
 {
-	watch_topic_forum('topic', $s_watching_topic, $user->data['user_id'], $forum_id, $topic_id, $topic_data['notify_status'], $start);
+	$notify_status = (isset($topic_data['notify_status'])) ? $topic_data['notify_status'] : null;
+	watch_topic_forum('topic', $s_watching_topic, $user->data['user_id'], $forum_id, $topic_id, $notify_status, $start, $topic_data['topic_title']);
 
 	// Reset forum notification if forum notify is set
 	if ($config['allow_forum_notify'] && $auth->acl_get('f_subscribe', $forum_id))
@@ -551,7 +583,10 @@ generate_forum_rules($topic_data);
 
 // Moderators
 $forum_moderators = array();
-get_moderators($forum_moderators, $forum_id);
+if ($config['load_moderators'])
+{
+	get_moderators($forum_moderators, $forum_id);
+}
 
 // This is only used for print view so ...
 $server_path = (!$view) ? $phpbb_root_path : generate_board_url() . '/';
@@ -559,9 +594,25 @@ $server_path = (!$view) ? $phpbb_root_path : generate_board_url() . '/';
 // Replace naughty words in title
 $topic_data['topic_title'] = censor_text($topic_data['topic_title']);
 
-// **************************************************************************************************************************************************************************************
-// **************************************************************************************************************************************************************************************
-// **************************************************************************************************************************************************************************************
+$s_search_hidden_fields = array(
+	't' => $topic_id,
+	'sf' => 'msgonly',
+);
+if ($_SID)
+{
+	$s_search_hidden_fields['sid'] = $_SID;
+}
+
+if (!empty($_EXTRA_URL))
+{
+	foreach ($_EXTRA_URL as $url_param)
+	{
+		$url_param = explode('=', $url_param, 2);
+		$s_search_hidden_fields[$url_param[0]] = $url_param[1];
+	}
+}
+
+// jatekszervezes_eleje //
 $userid	= $user->data['user_id'];
 
 //  hasznos //
@@ -601,9 +652,6 @@ if ($userid > 1)
 	}
 }
 //  hasznos //
-// **************************************************************************************************************************************************************************************
-// **************************************************************************************************************************************************************************************
-// **************************************************************************************************************************************************************************************
 
 //  hirdetes //
 $hp_up_id	= request_var('HPUID', 0);
@@ -664,21 +712,16 @@ if (($hp_del_id > 1) or ($hp_up_id > 1))
 
 //  hirdetes //
 
-// **************************************************************************************************************************************************************************************
-// **************************************************************************************************************************************************************************************
-// **************************************************************************************************************************************************************************************
-
 //  szervezes //
 
-// szervezÈs v·ltozÛk behÌv·sa (sok van)
+// szervez√©s v√°ltoz√≥k beh√≠v√°sa (sok van)
 
-// mit csin·ljunk?
+// mit csin√°ljunk?
 $jsz			= request_var('JSZ', 0);
-
 
 if ($jsz == 10)
 {
-	//tˆrzsadatok inputbÛl
+	//t√∂rzsadatok inputb√≥l
 	$gamedate		= $db->sql_escape(request_var('GAMEDATE',''));
 	$gameenddate	= $db->sql_escape(request_var('GAMEENDDATE',''));
 	$playernr		= request_var('PLAYERNR',0);
@@ -701,16 +744,16 @@ if ($jsz == 10)
 	$szervezett = (int) $db->sql_fetchfield('cnt');
 	$db->sql_freeresult($result);
 	
-	//˙j kiÌr·s
+	//√∫j ki√≠r√°s
 	if ($szervezett == 0)
 	{
-		$sql="INSERT INTO jatekszervezes_Szervez (topic_id,GameDate,GameEndDate,PlayerNr,Fee,BattleField,szervezo,kontakt,gateopen,gamestart,gameend,rules,imagelink,gps,maplink,minimum,kotelezo,ajanlott) 
-		      VALUES ('$topic_id','$gamedate','$gameenddate',0,'$fee','$battlefield','$szervezo','$kontakt','$gateopen','$gamestart','$gameend','$rules','$imagelink','$gps','$maplink',$minimum,'$kotelezo','$ajanlott')";
+		$sql="INSERT INTO jatekszervezes_Szervez (topic_id,GameDate,GameEndDate,PlayerNr,Fee,BattleField,szervezo,kontakt,gateopen,gamestart,gameend,rules,imagelink,gps,maplink,minimum,kotelezo,ajanlott,tarsszervezo) 
+		      VALUES ('$topic_id','$gamedate','$gameenddate',0,'$fee','$battlefield','$szervezo','$kontakt','$gateopen','$gamestart','$gameend','$rules','$imagelink','$gps','$maplink',$minimum,'$kotelezo','$ajanlott','')";
 		$db->sql_query($sql);
 	
 	}
 
-	//szerkesztÈs
+	//szerkeszt√©s
 	else
 	{
 		if ($gamedate == '')
@@ -741,14 +784,14 @@ if ($jsz == 10)
 if ($jsz == 11)
 {
 
-	//˙j oldal inputbÛl
+	//√∫j oldal inputb√≥l
 	$newside		= $db->sql_escape(utf8_normalize_nfc(request_var('NEWSIDE','',true)));
 	$newside_nr		= request_var('NEWSIDE_NR',0);
 	
 	$sql = "INSERT INTO jatekszervezes_Sides (topic_id, side_name, side_player) VALUES ('$topic_id', '$newside', '$newside_nr')"; 
 	$db->sql_query($sql);
 
-	//ez mehetne elj·r·sba is
+	//ez mehetne elj√°r√°sba is
 	$sql = " SELECT sum(side_player) sum_player FROM jatekszervezes_Sides WHERE topic_id=$topic_id and side_player>0";
 	$result = $db->sql_query($sql);
 	$sum_player = (int) $db->sql_fetchfield('sum_player');
@@ -766,7 +809,7 @@ if ($jsz == 11)
 
 if ($jsz == 12)
 {
-	// oldal modol·s inputbÛl
+	// oldal modol√°s inputb√≥l
 	$modside_id = array();
 	$modside = array();
 	$modside_nr = array();
@@ -797,7 +840,7 @@ if ($jsz == 12)
 		$db->sql_query($sql);
 	}
 	
-	//ez mehetne elj·r·sba is
+	//ez mehetne elj√°r√°sba is
 	$sql = " SELECT sum(side_player) sum_player FROM jatekszervezes_Sides WHERE topic_id=$topic_id and side_player>0";
 	$result = $db->sql_query($sql);
 	$sum_player = (int) $db->sql_fetchfield('sum_player');
@@ -830,7 +873,7 @@ if ($jsz == 20)
 
 	}
 
-	// kontrolhoz kijelˆl userek
+	// kontrolhoz kijel√∂l userek
 	$sel_user = array();
 	for ($i = 0; $i < 500; $i++)
 	{
@@ -847,7 +890,7 @@ if ($jsz == 20)
 	$feketeremark	= $db->sql_escape(utf8_normalize_nfc(request_var('K_FEKETEREMARK','',true)));
 	$feherremark	= $db->sql_escape(utf8_normalize_nfc(request_var('K_FEHERREMARK','',true)));
 
-	// oldal lez·r·sok
+	// oldal lez√°r√°sok
 	for ($i = 0; $i <= $locksize; $i++)
 	{
 		if ( $lockside_id[$i] == $lockside_hideid[$i] )
@@ -862,7 +905,7 @@ if ($jsz == 20)
 		}
 	}
 
-	// kijelˆltek adott oldalra helyezÈse
+	// kijel√∂ltek adott oldalra helyez√©se
 	if ($kontroll == 1)
 	{
 		for ($i = 0, $size = sizeof($sel_user); $i < $size; $i++)
@@ -872,7 +915,7 @@ if ($jsz == 20)
 		}
 	}
 
-	// kijelˆltek adott rajba
+	// kijel√∂ltek adott rajba
 	if ($kontroll == 2)
 	{
 		for ($i = 0, $size = sizeof($sel_user); $i < $size; $i++)
@@ -882,7 +925,7 @@ if ($jsz == 20)
 		}
 	}
 
-	// kijelˆltek tˆrlÈse
+	// kijel√∂ltek t√∂rl√©se
 	if ($kontroll == 3)
 	{
 		for ($i = 0, $size = sizeof($sel_user); $i < $size; $i++)
@@ -893,7 +936,7 @@ if ($jsz == 20)
 	}
 
 
-	// kijelˆltek jelentkezÈsÈnek elfogad·sa
+	// kijel√∂ltek jelentkez√©s√©nek elfogad√°sa
 	if ($kontroll == 4)
 	{
 		for ($i = 0, $size = sizeof($sel_user); $i < $size; $i++)
@@ -903,7 +946,7 @@ if ($jsz == 20)
 		}
 	}
 
-	// kijelˆltek jelentkezÈsÈnek elutasÌt·sa
+	// kijel√∂ltek jelentkez√©s√©nek elutas√≠t√°sa
 	if ($kontroll == 5)
 	{
 		for ($i = 0, $size = sizeof($sel_user); $i < $size; $i++)
@@ -924,7 +967,7 @@ if ($jsz == 20)
 		}
 	}
 	
-	// fehÈr lista
+	// feh√©r lista
 	if ($kontroll == 7)
 	{
 		for ($i = 0, $size = sizeof($sel_user); $i < $size; $i++)
@@ -935,7 +978,7 @@ if ($jsz == 20)
 		}
 	}
 	
-	//ez mehetne elj·r·sba is
+	//ez mehetne elj√°r√°sba is
 	$sql = " SELECT sum(side_player) sum_player FROM jatekszervezes_Sides WHERE topic_id=$topic_id and side_player>0";
 	$result = $db->sql_query($sql);
 	$sum_player = (int) $db->sql_fetchfield('sum_player');
@@ -960,7 +1003,7 @@ if ($jsz == 20)
 }
 
 
-// SzervezÈs tˆrzsadatok behÌv·sa db-bıl
+// Szervez√©s t√∂rzsadatok beh√≠v√°sa db-b≈ël
 
 $sql = "select * from jatekszervezes_Szervez where topic_id=$topic_id limit 1"; 
 $result = $db->sql_query($sql);
@@ -993,7 +1036,7 @@ $db->sql_freeresult($result);
 if ($jsz == 30)
 {
 	
-	// jelentkezÈsi adatok feltˆltÈse inputbÛl
+	// jelentkez√©si adatok felt√∂lt√©se inputb√≥l
 	$weap_m			= $db->sql_escape(utf8_normalize_nfc(request_var('WEAP_M','',true)));
 	$fps_m			= request_var('FPS_M',0);
 	$weap_s			= $db->sql_escape(utf8_normalize_nfc(request_var('WEAP_S','',true)));
@@ -1073,7 +1116,7 @@ if ($jsz == 30)
 				}
 			}
 		}
-		//ˆssz j·zÈkosz·m meg h·nyan jelentkeztek		
+		//√∂ssz j√°z√©kosz√°m meg h√°nyan jelentkeztek		
 		$sql = " SELECT sum(side_player) sum_player FROM jatekszervezes_Sides WHERE topic_id=$topic_id and side_player>0";
 		$result = $db->sql_query($sql);
 		$sum_player = (int) $db->sql_fetchfield('sum_player');
@@ -1091,7 +1134,7 @@ if ($jsz == 30)
 }
 
 
-// jelentkezÈsi adatok feltˆltÈse db-bıl
+// jelentkez√©si adatok felt√∂lt√©se db-b≈ël
 $sql = "select * from jatekszervezes_jelentk WHERE topic_id=$topic_id and user_id=$userid"; 
 $result = $db->sql_query_limit($sql, 1);
 $row = $db->sql_fetchrow($result);
@@ -1113,9 +1156,6 @@ $signup_id 	= $row['signup_id'];
 
 $db->sql_freeresult($result);
 
-// **************************************************************************************************************************************************************************************
-// **************************************************************************************************************************************************************************************
-// **************************************************************************************************************************************************************************************
 
 //load personal template
 $sql = "SELECT * FROM " . $table_prefix . "profile_fields_data WHERE user_id=$userid"; 
@@ -1180,7 +1220,7 @@ else
 }
 */
 
-// oldalak behÌv·sa db-bıl
+// oldalak beh√≠v√°sa db-b≈ël
 $sql = " SELECT side_id, IF(side_player < 1, 9999, side_player) side_player, IF(side_player < 1, concat('|Nem J&#225;t&#233;kos - ',side_name), side_name) side_name, side_open FROM jatekszervezes_Sides WHERE topic_id=$topic_id ORDER BY side_name ";
 
 $result = $db->sql_query($sql);
@@ -1193,15 +1233,7 @@ while ($row = $db->sql_fetchrow($result))
 
 $db->sql_freeresult($result);
 
-
-
-
-
-
-// **************************************************************************************************************************************************************************************
-// **************************************************************************************************************************************************************************************
-// **************************************************************************************************************************************************************************************
-//lez·r·s, fekete/fehÈr lista megnyit·sa
+//lez√°r√°s, fekete/feh√©r lista megnyit√°sa
 
 $sql = "select if(GameDate-1 <= CURDATE(),'DISABLED','') lezaras from jatekszervezes_Szervez where topic_id=$topic_id"; 
 $result = $db->sql_query($sql);
@@ -1213,7 +1245,7 @@ $result = $db->sql_query($sql);
 $pontosztas = $db->sql_fetchfield('pontosztas');
 $db->sql_freeresult($result);
 
-// jelentkeztÈs megjelenÌtÈse
+// jelentkezt√©s megjelen√≠t√©se
 
 $sql = " SELECT sum(status) status FROM jatekszervezes_jelentk WHERE topic_id=$topic_id and user_id=".$user->data['user_id'];
 $result = $db->sql_query($sql);
@@ -1228,7 +1260,7 @@ $rajok = (int) $db->sql_fetchfield('cnt');
 $db->sql_freeresult($result);
 
 
-//fekete/fehÈr list·rÛl levÈtel
+//fekete/feh√©r list√°r√≥l lev√©tel
 			
 $fal_topic_id	= request_var('FAL1',0);
 $fal_list_id	= request_var('FAL2',0);
@@ -1247,7 +1279,7 @@ if (($fal_topic_id>0) and ($fal_list_id>0))
 	}
 }
 
-//ha j·tÈkos a topik, akkor kellenek a fejlÈcbe extra adatok 
+//ha j√°t√©kos a topik, akkor kellenek a fejl√©cbe extra adatok 
 if ($gamedate!='')
 {
 	$topic_data['topic_title'] = $topic_data['topic_title'].' / '.$gamedate.', '.$battlefield.', '.$fee.' Ft, '.$sum_jel.'/'.$sum_player;
@@ -1264,20 +1296,11 @@ $site_tel		= $row['telefon'];
 $site_nev		= $row['nev'];
 $site_met		= $row['met'];
 $db->sql_freeresult($result);
-
-//  szervezes vege//
-// **************************************************************************************************************************************************************************************
-// **************************************************************************************************************************************************************************************
-// **************************************************************************************************************************************************************************************
-
+// jatekszervezes_vege //
 
 // Send vars to template
 $template->assign_vars(array(
-
-// **************************************************************************************************************************************************************************************
-// **************************************************************************************************************************************************************************************
-// **************************************************************************************************************************************************************************************
-//  szervezes //
+// jatekszervezes_eleje //
 	'LATITUDE'		=> $site_lat,
 	'LONGTITUDE'	=> $site_longt,
 	'PTIP'			=> $site_tip,
@@ -1331,21 +1354,15 @@ $template->assign_vars(array(
 	'SZ_BATTLEFIELD'=> $battlefield,
 	'LEZARAS'		=> $lezaras,
 	'PRINT_PLAYER_LIST'=> append_sid("{$phpbb_root_path}list.$phpEx", "id=".$topic_id),	
-// szervezes vege //
-// **************************************************************************************************************************************************************************************
-// **************************************************************************************************************************************************************************************
-// **************************************************************************************************************************************************************************************
-
 // hirdetes //
 	'WHATTIMEISIT'	=> $curr_forum_date,
 // hirdetes vege //
-
+// jatekszervezes_vege //
 	'FORUM_ID' 		=> $forum_id,
 	'FORUM_NAME' 	=> $topic_data['forum_name'],
 	'FORUM_DESC'	=> generate_text_for_display($topic_data['forum_desc'], $topic_data['forum_desc_uid'], $topic_data['forum_desc_bitfield'], $topic_data['forum_desc_options']),
 	'TOPIC_ID' 		=> $topic_id,
 	'TOPIC_TITLE' 	=> $topic_data['topic_title'],
-
 	'TOPIC_POSTER'	=> $topic_data['topic_poster'],
 
 	'TOPIC_AUTHOR_FULL'		=> get_username_string('full', $topic_data['topic_poster'], $topic_data['topic_first_poster_name'], $topic_data['topic_first_poster_colour']),
@@ -1355,7 +1372,7 @@ $template->assign_vars(array(
 	'PAGINATION' 	=> $pagination,
 	'PAGE_NUMBER' 	=> on_page($total_posts, $config['posts_per_page'], $start),
 	'TOTAL_POSTS'	=> ($total_posts == 1) ? $user->lang['VIEW_TOPIC_POST'] : sprintf($user->lang['VIEW_TOPIC_POSTS'], $total_posts),
-	'U_MCP' 		=> ($auth->acl_get('m_', $forum_id)) ? append_sid("{$phpbb_root_path}mcp.$phpEx", "i=main&amp;mode=topic_view&amp;f=$forum_id&amp;t=$topic_id&amp;start=$start" . ((strlen($u_sort_param)) ? "&amp;$u_sort_param" : ''), true, $user->session_id) : '',
+	'U_MCP' 		=> ($auth->acl_get('m_', $forum_id)) ? append_sid("{$phpbb_root_path}mcp.$phpEx", "i=main&amp;mode=topic_view&amp;f=$forum_id&amp;t=$topic_id" . (($start == 0) ? '' : "&amp;start=$start") . ((strlen($u_sort_param)) ? "&amp;$u_sort_param" : ''), true, $user->session_id) : '',
 	'MODERATORS'	=> (isset($forum_moderators[$forum_id]) && sizeof($forum_moderators[$forum_id])) ? implode(', ', $forum_moderators[$forum_id]) : '',
 
 	'POST_IMG' 			=> ($topic_data['forum_status'] == ITEM_LOCKED) ? $user->img('button_topic_locked', 'FORUM_LOCKED') : $user->img('button_topic_new', 'POST_NEW_TOPIC'),
@@ -1379,21 +1396,23 @@ $template->assign_vars(array(
 	'UNAPPROVED_IMG'	=> $user->img('icon_topic_unapproved', 'POST_UNAPPROVED'),
 	'WARN_IMG'			=> $user->img('icon_user_warn', 'WARN_USER'),
 
-	'S_IS_LOCKED'			=>($topic_data['topic_status'] == ITEM_UNLOCKED) ? false : true,
+	'S_IS_LOCKED'			=> ($topic_data['topic_status'] == ITEM_UNLOCKED && $topic_data['forum_status'] == ITEM_UNLOCKED) ? false : true,
 	'S_SELECT_SORT_DIR' 	=> $s_sort_dir,
 	'S_SELECT_SORT_KEY' 	=> $s_sort_key,
 	'S_SELECT_SORT_DAYS' 	=> $s_limit_days,
 	'S_SINGLE_MODERATOR'	=> (!empty($forum_moderators[$forum_id]) && sizeof($forum_moderators[$forum_id]) > 1) ? false : true,
-	'S_TOPIC_ACTION' 		=> append_sid("{$phpbb_root_path}viewtopic.$phpEx", "f=$forum_id&amp;t=$topic_id&amp;start=$start"),
+	'S_TOPIC_ACTION' 		=> append_sid("{$phpbb_root_path}viewtopic.$phpEx", "f=$forum_id&amp;t=$topic_id" . (($start == 0) ? '' : "&amp;start=$start")),
 	'S_TOPIC_MOD' 			=> ($topic_mod != '') ? '<select name="action" id="quick-mod-select">' . $topic_mod . '</select>' : '',
-	'S_MOD_ACTION' 			=> append_sid("{$phpbb_root_path}mcp.$phpEx", "f=$forum_id&amp;t=$topic_id&amp;start=$start&amp;quickmod=1&amp;redirect=" . urlencode(str_replace('&amp;', '&', $viewtopic_url)), true, $user->session_id),
+	'S_MOD_ACTION' 			=> append_sid("{$phpbb_root_path}mcp.$phpEx", "f=$forum_id&amp;t=$topic_id" . (($start == 0) ? '' : "&amp;start=$start") . "&amp;quickmod=1&amp;redirect=" . urlencode(str_replace('&amp;', '&', $viewtopic_url)), true, $user->session_id),
 
 	'S_VIEWTOPIC'			=> true,
 	'S_DISPLAY_SEARCHBOX'	=> ($auth->acl_get('u_search') && $auth->acl_get('f_search', $forum_id) && $config['load_search']) ? true : false,
-	'S_SEARCHBOX_ACTION'	=> append_sid("{$phpbb_root_path}search.$phpEx", 't=' . $topic_id),
+	'S_SEARCHBOX_ACTION'	=> append_sid("{$phpbb_root_path}search.$phpEx"),
+	'S_SEARCH_LOCAL_HIDDEN_FIELDS'	=> build_hidden_fields($s_search_hidden_fields),
 
 	'S_DISPLAY_POST_INFO'	=> ($topic_data['forum_type'] == FORUM_POST && ($auth->acl_get('f_post', $forum_id) || $user->data['user_id'] == ANONYMOUS)) ? true : false,
 	'S_DISPLAY_REPLY_INFO'	=> ($topic_data['forum_type'] == FORUM_POST && ($auth->acl_get('f_reply', $forum_id) || $user->data['user_id'] == ANONYMOUS)) ? true : false,
+	'S_ENABLE_FEEDS_TOPIC'	=> ($config['feed_topic'] && !phpbb_optionget(FORUM_OPTION_FEED_EXCLUDE, $topic_data['forum_options'])) ? true : false,
 
 	'U_TOPIC'				=> "{$server_path}viewtopic.$phpEx?f=$forum_id&amp;t=$topic_id",
 	'U_FORUM'				=> $server_path,
@@ -1416,12 +1435,8 @@ $template->assign_vars(array(
 	'U_BUMP_TOPIC'			=> (bump_topic_allowed($forum_id, $topic_data['topic_bumped'], $topic_data['topic_last_post_time'], $topic_data['topic_poster'], $topic_data['topic_last_poster_id'])) ? append_sid("{$phpbb_root_path}posting.$phpEx", "mode=bump&amp;f=$forum_id&amp;t=$topic_id&amp;hash=" . generate_link_hash("topic_$topic_id")) : '')
 );
 
-// **************************************************************************************************************************************************************************************
-// **************************************************************************************************************************************************************************************
-// **************************************************************************************************************************************************************************************
-//  szervezes //
-
-// p·lya lista kiÌr·shoz
+// jatekszervezes_eleje //
+// p√°lya lista ki√≠r√°shoz
 
 $sql = " SELECT " . $table_prefix . "topics.topic_title, jatekszervezes_sites.topic_id, IF(jatekszervezes_Szervez.gps IS NULL, '','selected') sel 
 		 FROM " . $table_prefix . "topics, jatekszervezes_sites LEFT OUTER JOIN jatekszervezes_Szervez ON jatekszervezes_sites.topic_id=jatekszervezes_Szervez.gps AND jatekszervezes_Szervez.topic_id=$topic_id
@@ -1453,7 +1468,7 @@ $db->sql_freeresult($result);
 
 if ($sides_cnt > 0)
 {
-	// oldal lista j·tÈk kiÌr·shoz
+	// oldal lista j√°t√©k ki√≠r√°shoz
 
 	$sql = " SELECT side_name, side_id, side_player, concat( 'MODSIDE', @rownum := @rownum +1 ) nnr, concat( 'MODSIDE_ID', @rownum ) idnr, concat( 'MODSIDE_NR', @rownum ) pnrnr 
 			 FROM jatekszervezes_Sides s, (SELECT @rownum :=0) r  
@@ -1482,7 +1497,7 @@ if ($sides_cnt > 0)
 	unset($sides_info);
 
 
-	// oldal lista j·tÈkos adminisztr·l·shoz
+	// oldal lista j√°t√©kos adminisztr√°l√°shoz
 
 	$sql = " SELECT side_name, side_id, side_open, concat( 'LOCKSIDE', @rownum := @rownum +1 ) nnr, concat( 'LOCKSIDEHIDE', @rownum ) hnnr
 			 FROM jatekszervezes_Sides s, (SELECT @rownum :=0) r  
@@ -1510,7 +1525,7 @@ if ($sides_cnt > 0)
 	unset($locksides_option);
 
 
-	// oldal lista j·tÈkosoknak jelentkezÈshez
+	// oldal lista j√°t√©kosoknak jelentkez√©shez
 
 	$sql = " SELECT side_name, side_id, IF(side IS NULL, '','SELECTED') sel 
 			 FROM jatekszervezes_Sides s LEFT OUTER JOIN jatekszervezes_jelentk j  ON s.side_id= j.side AND j.user_id=$userid
@@ -1537,7 +1552,7 @@ if ($sides_cnt > 0)
 
 
 	
-	// oldalak a jelentkezettek list·j·n
+	// oldalak a jelentkezettek list√°j√°n
 
 	$sql = " SELECT side_name, side_id, IF(side_player < 1, 9999, side_player) side_player, IF(side IS NULL, '','SELECTED') sel 
 			 FROM jatekszervezes_Sides s LEFT OUTER JOIN jatekszervezes_jelentk j  ON s.side_id= j.side AND j.user_id=$userid
@@ -1562,7 +1577,7 @@ if ($sides_cnt > 0)
 	}
 	unset($sides_pl);
 
-	// j·tÈkosok a jelentkezettek list·j·n
+	// j√°t√©kosok a jelentkezettek list√°j√°n
 	if ( sizeof($sideids) > 0)
 	{
 		$sides_pl_info = array();
@@ -1669,7 +1684,7 @@ if ($sides_cnt > 0)
 
 
 }
-	// fekete/fehÈr lista dolgai
+	// fekete/feh√©r lista dolgai
 if (($topic_id == 3217) or ($topic_id == 3216 ))
 {
 	$sql = " SELECT f.*, t.topic_title, u1.username, u2.username sendername 
@@ -1711,11 +1726,7 @@ if (($topic_id == 3217) or ($topic_id == 3216 ))
 	}
 	unset($flista_info);
 }
-// szervezes vege //
-// **************************************************************************************************************************************************************************************
-// **************************************************************************************************************************************************************************************
-// **************************************************************************************************************************************************************************************
-
+// jatekszervezes_vege //
 
 // Does this topic contain a poll?
 if (!empty($topic_data['poll_start']))
@@ -1766,15 +1777,17 @@ if (!empty($topic_data['poll_start']))
 	$s_can_vote = ($auth->acl_get('f_vote', $forum_id) &&
 		(($topic_data['poll_length'] != 0 && $topic_data['poll_start'] + $topic_data['poll_length'] > time()) || $topic_data['poll_length'] == 0) &&
 		$topic_data['topic_status'] != ITEM_LOCKED &&
-		$topic_data['forum_status'] != ITEM_LOCKED) ? true : false;
+		$topic_data['forum_status'] != ITEM_LOCKED &&
+		(!sizeof($cur_voted_id) ||
+		($auth->acl_get('f_votechg', $forum_id) && $topic_data['poll_vote_change']))) ? true : false;
 	$s_display_results = (!$s_can_vote || ($s_can_vote && sizeof($cur_voted_id)) || $view == 'viewpoll') ? true : false;
 
 	if ($update && $s_can_vote)
 	{
 
-		if (!sizeof($voted_id) || sizeof($voted_id) > $topic_data['poll_max_options'] || in_array(VOTE_CONVERTED, $cur_voted_id))
+		if (!sizeof($voted_id) || sizeof($voted_id) > $topic_data['poll_max_options'] || in_array(VOTE_CONVERTED, $cur_voted_id) || !check_form_key('posting'))
 		{
-			$redirect_url = append_sid("{$phpbb_root_path}viewtopic.$phpEx", "f=$forum_id&amp;t=$topic_id&amp;start=$start");
+			$redirect_url = append_sid("{$phpbb_root_path}viewtopic.$phpEx", "f=$forum_id&amp;t=$topic_id" . (($start == 0) ? '' : "&amp;start=$start"));
 
 			meta_refresh(5, $redirect_url);
 			if (!sizeof($voted_id))
@@ -1785,9 +1798,13 @@ if (!empty($topic_data['poll_start']))
 			{
 				$message = 'TOO_MANY_VOTE_OPTIONS';
 			}
-			else
+			else if (in_array(VOTE_CONVERTED, $cur_voted_id))
 			{
 				$message = 'VOTE_CONVERTED';
+			}
+			else
+			{
+				$message = 'FORM_INVALID';
 			}
 
 			$message = $user->lang[$message] . '<br /><br />' . sprintf($user->lang['RETURN_TOPIC'], '<a href="' . $redirect_url . '">', '</a>');
@@ -1853,7 +1870,7 @@ if (!empty($topic_data['poll_start']))
 		//, topic_last_post_time = ' . time() . " -- for bumping topics with new votes, ignore for now
 		$db->sql_query($sql);
 
-		$redirect_url = append_sid("{$phpbb_root_path}viewtopic.$phpEx", "f=$forum_id&amp;t=$topic_id&amp;start=$start");
+		$redirect_url = append_sid("{$phpbb_root_path}viewtopic.$phpEx", "f=$forum_id&amp;t=$topic_id" . (($start == 0) ? '' : "&amp;start=$start"));
 
 		meta_refresh(5, $redirect_url);
 		trigger_error($user->lang['VOTE_SUBMITTED'] . '<br /><br />' . sprintf($user->lang['RETURN_TOPIC'], '<a href="' . $redirect_url . '">', '</a>'));
@@ -1941,6 +1958,7 @@ if (!empty($topic_data['poll_start']))
 // If the user is trying to reach the second half of the topic, fetch it starting from the end
 $store_reverse = false;
 $sql_limit = $config['posts_per_page'];
+$sql_sort_order = $direction = '';
 
 if ($start > $total_posts / 2)
 {
@@ -1952,14 +1970,23 @@ if ($start > $total_posts / 2)
 	}
 
 	// Select the sort order
-	$sql_sort_order = $sort_by_sql[$sort_key] . ' ' . (($sort_dir == 'd') ? 'ASC' : 'DESC');
+	$direction = (($sort_dir == 'd') ? 'ASC' : 'DESC');
 	$sql_start = max(0, $total_posts - $sql_limit - $start);
 }
 else
 {
 	// Select the sort order
-	$sql_sort_order = $sort_by_sql[$sort_key] . ' ' . (($sort_dir == 'd') ? 'DESC' : 'ASC');
+	$direction = (($sort_dir == 'd') ? 'DESC' : 'ASC');
 	$sql_start = $start;
+}
+
+if (is_array($sort_by_sql[$sort_key]))
+{
+	$sql_sort_order = implode(' ' . $direction . ', ', $sort_by_sql[$sort_key]) . ' ' . $direction;
+}
+else
+{
+	$sql_sort_order = $sort_by_sql[$sort_key] . ' ' . $direction;
 }
 
 // Container for user details, only process once
@@ -1970,10 +1997,10 @@ $i = $i_total = 0;
 
 // Go ahead and pull all data for this topic
 $sql = 'SELECT p.post_id
-	FROM ' . POSTS_TABLE . ' p' . (($sort_by_sql[$sort_key][0] == 'u') ? ', ' . USERS_TABLE . ' u': '') . "
+	FROM ' . POSTS_TABLE . ' p' . (($join_user_sql[$sort_key]) ? ', ' . USERS_TABLE . ' u': '') . "
 	WHERE p.topic_id = $topic_id
 		" . ((!$auth->acl_get('m_approve', $forum_id)) ? 'AND p.post_approved = 1' : '') . "
-		" . (($sort_by_sql[$sort_key][0] == 'u') ? 'AND u.user_id = p.poster_id': '') . "
+		" . (($join_user_sql[$sort_key]) ? 'AND u.user_id = p.poster_id': '') . "
 		$limit_posts_time
 	ORDER BY $sql_sort_order";
 $result = $db->sql_query_limit($sql, $sql_limit, $sql_start);
@@ -1986,8 +2013,8 @@ while ($row = $db->sql_fetchrow($result))
 }
 $db->sql_freeresult($result);
 
-// szervezes //
-// elsı sor mindig fel¸l
+// jatekszervezes_eleje //
+// els≈ë sor mindig fel√ºl
 if (($forum_id == 1) or ($forum_id == 153))
 {
 	$sql = "select min(post_id) orig_post FROM " . POSTS_TABLE . " WHERE topic_id=$topic_id"; 
@@ -2001,7 +2028,7 @@ if (($forum_id == 1) or ($forum_id == 153))
 	}
 	$post_list[0] = $orig_post_id;
 }
-// szervezes vege //
+// jatekszervezes_vege //
 
 if (!sizeof($post_list))
 {
@@ -2040,7 +2067,7 @@ $sql = $db->sql_build_query('SELECT', array(
 
 $result = $db->sql_query($sql);
 
-$now = getdate(time() + $user->timezone + $user->dst - date('Z'));
+$now = phpbb_gmgetdate(time() + $user->timezone + $user->dst);
 
 // Posts are stored in the $rowset array while $attach_list, $user_cache
 // and the global bbcode_bitfield are built
@@ -2192,11 +2219,16 @@ while ($row = $db->sql_fetchrow($result))
 				'yim'			=> ($row['user_yim']) ? 'http://edit.yahoo.com/config/send_webmesg?.target=' . urlencode($row['user_yim']) . '&amp;.src=pg' : '',
 				'jabber'		=> ($row['user_jabber'] && $auth->acl_get('u_sendim')) ? append_sid("{$phpbb_root_path}memberlist.$phpEx", "mode=contact&amp;action=jabber&amp;u=$poster_id") : '',
 				'search'		=> ($auth->acl_get('u_search')) ? append_sid("{$phpbb_root_path}search.$phpEx", "author_id=$poster_id&amp;sr=posts") : '',
+
+				'author_full'		=> get_username_string('full', $poster_id, $row['username'], $row['user_colour']),
+				'author_colour'		=> get_username_string('colour', $poster_id, $row['username'], $row['user_colour']),
+				'author_username'	=> get_username_string('username', $poster_id, $row['username'], $row['user_colour']),
+				'author_profile'	=> get_username_string('profile', $poster_id, $row['username'], $row['user_colour']),
 			);
 
 			get_user_rank($row['user_rank'], $row['user_posts'], $user_cache[$poster_id]['rank_title'], $user_cache[$poster_id]['rank_image'], $user_cache[$poster_id]['rank_image_src']);
 
-			if (!empty($row['user_allow_viewemail']) || $auth->acl_get('a_email'))
+			if ((!empty($row['user_allow_viewemail']) && $auth->acl_get('u_sendemail')) || $auth->acl_get('a_email'))
 			{
 				$user_cache[$poster_id]['email'] = ($config['board_email_form'] && $config['email_enable']) ? append_sid("{$phpbb_root_path}memberlist.$phpEx", "mode=email&amp;u=$poster_id") : (($config['board_hide_emails'] && !$auth->acl_get('a_email')) ? '' : 'mailto:' . $row['user_email']);
 			}
@@ -2207,7 +2239,7 @@ while ($row = $db->sql_fetchrow($result))
 
 			if (!empty($row['user_icq']))
 			{
-				$user_cache[$poster_id]['icq'] = 'http://www.icq.com/people/webmsg.php?to=' . $row['user_icq'];
+				$user_cache[$poster_id]['icq'] = 'http://www.icq.com/people/' . urlencode($row['user_icq']) . '/';
 				$user_cache[$poster_id]['icq_status_img'] = '<img src="http://web.icq.com/whitepages/online?icq=' . $row['user_icq'] . '&amp;img=5" width="18" height="18" alt="" />';
 			}
 			else
@@ -2250,7 +2282,22 @@ if ($config['load_cpf_viewtopic'])
 	$cp = new custom_profile();
 
 	// Grab all profile fields from users in id cache for later use - similar to the poster cache
-	$profile_fields_cache = $cp->generate_profile_fields_template('grab', $id_cache);
+	$profile_fields_tmp = $cp->generate_profile_fields_template('grab', $id_cache);
+
+	// filter out fields not to be displayed on viewtopic. Yes, it's a hack, but this shouldn't break any MODs.
+	$profile_fields_cache = array();
+	foreach ($profile_fields_tmp as $profile_user_id => $profile_fields)
+	{
+		$profile_fields_cache[$profile_user_id] = array();
+		foreach ($profile_fields as $used_ident => $profile_field)
+		{
+			if ($profile_field['data']['field_show_on_vt'])
+			{
+				$profile_fields_cache[$profile_user_id][$used_ident] = $profile_field;
+			}
+		}
+	}
+	unset($profile_fields_tmp);
 }
 
 // Generate online information for user
@@ -2484,7 +2531,7 @@ for ($i = 0, $end = sizeof($post_list); $i < $end; ++$i)
 		// It is safe to grab the username from the user cache array, we are at the last
 		// post and only the topic poster and last poster are allowed to bump.
 		// Admins and mods are bound to the above rules too...
-		$l_bumped_by = '<br /><br />' . sprintf($user->lang['BUMPED_BY'], $user_cache[$topic_data['topic_bumper']]['username'], $user->format_date($topic_data['topic_last_post_time'], false, true));
+		$l_bumped_by = sprintf($user->lang['BUMPED_BY'], $user_cache[$topic_data['topic_bumper']]['username'], $user->format_date($topic_data['topic_last_post_time'], false, true));
 	}
 	else
 	{
@@ -2506,6 +2553,30 @@ for ($i = 0, $end = sizeof($post_list); $i < $end; ++$i)
 	{
 		$s_first_unread = $first_unread = true;
 	}
+
+	$edit_allowed = ($user->data['is_registered'] && ($auth->acl_get('m_edit', $forum_id) || (
+		$user->data['user_id'] == $poster_id &&
+		$auth->acl_get('f_edit', $forum_id) &&
+		$topic_data['topic_status'] != ITEM_LOCKED &&
+		!$row['post_edit_locked'] &&
+		($row['post_time'] > time() - ($config['edit_time'] * 60) || !$config['edit_time'])
+	)));
+
+	$quote_allowed = $auth->acl_get('m_edit', $forum_id) || ($topic_data['topic_status'] != ITEM_LOCKED &&
+		($user->data['user_id'] == ANONYMOUS || $auth->acl_get('f_reply', $forum_id))
+	);
+
+	$delete_allowed = ($user->data['is_registered'] && ($auth->acl_get('m_delete', $forum_id) || (
+		$user->data['user_id'] == $poster_id &&
+		$auth->acl_get('f_delete', $forum_id) &&
+		$topic_data['topic_status'] != ITEM_LOCKED &&
+		$topic_data['topic_last_post_id'] == $row['post_id'] &&
+		($row['post_time'] > time() - ($config['delete_time'] * 60) || !$config['delete_time']) &&
+		// we do not want to allow removal of the last post if a moderator locked it!
+		!$row['post_edit_locked']
+	)));
+
+// jatekszervezes_eleje //
 // hasznos //
 	$haszn_ert=0;
 //    if (($forum_id=1) or ($forum_id=153) or ($forum_id = 26) or ($forum_id = 100) or ($forum_id = 126) or ($forum_id = 127) or ($forum_id = 128) or ($forum_id = 101) or ($forum_id = 102) or ($forum_id = 103) or ($forum_id = 104) or ($forum_id = 14) or ($forum_id = 119) or ($forum_id = 99))
@@ -2517,14 +2588,13 @@ for ($i = 0, $end = sizeof($post_list); $i < $end; ++$i)
 		$db->sql_freeresult($result);
 	}
 // hasznos //
-
-//
+// jatekszervezes_vege //
+	//
 	$postrow = array(
-		'POST_AUTHOR_FULL'		=> get_username_string('full', $poster_id, $row['username'], $row['user_colour'], $row['post_username']),
-		'POST_AUTHOR_COLOUR'	=> get_username_string('colour', $poster_id, $row['username'], $row['user_colour'], $row['post_username']),
-		'POST_AUTHOR'			=> get_username_string('username', $poster_id, $row['username'], $row['user_colour'], $row['post_username']),
-		'POST_AUTHOR_LENGTH'	=> strlen(get_username_string('username', $poster_id, $row['username'], $row['user_colour'], $row['post_username'])),
-		'U_POST_AUTHOR'			=> get_username_string('profile', $poster_id, $row['username'], $row['user_colour'], $row['post_username']),
+		'POST_AUTHOR_FULL'		=> ($poster_id != ANONYMOUS) ? $user_cache[$poster_id]['author_full'] : get_username_string('full', $poster_id, $row['username'], $row['user_colour'], $row['post_username']),
+		'POST_AUTHOR_COLOUR'	=> ($poster_id != ANONYMOUS) ? $user_cache[$poster_id]['author_colour'] : get_username_string('colour', $poster_id, $row['username'], $row['user_colour'], $row['post_username']),
+		'POST_AUTHOR'			=> ($poster_id != ANONYMOUS) ? $user_cache[$poster_id]['author_username'] : get_username_string('username', $poster_id, $row['username'], $row['user_colour'], $row['post_username']),
+		'U_POST_AUTHOR'			=> ($poster_id != ANONYMOUS) ? $user_cache[$poster_id]['author_profile'] : get_username_string('profile', $poster_id, $row['username'], $row['user_colour'], $row['post_username']),
 
 		'RANK_TITLE'		=> $user_cache[$poster_id]['rank_title'],
 		'RANK_IMG'			=> $user_cache[$poster_id]['rank_image'],
@@ -2537,12 +2607,14 @@ for ($i = 0, $end = sizeof($post_list); $i < $end; ++$i)
 		'POSTER_AGE'		=> $user_cache[$poster_id]['age'],
 
 		'POST_DATE'			=> $user->format_date($row['post_time'], false, ($view == 'print') ? true : false),
+// jatekszervezes_eleje //
 // hirdetes //
 		'HIRD_UP'			=> $row['post_time']+5184000,
 // hirdetes //
 // hasznos //
 		'HASZ_PONT'			=> $haszn_ert,
 // hasznos //
+// jatekszervezes_vege //
 		'POST_SUBJECT'		=> $row['post_subject'],
 		'MESSAGE'			=> $message,
 		'SIGNATURE'			=> ($row['enable_sig']) ? $user_cache[$poster_id]['sig'] : '',
@@ -2550,7 +2622,7 @@ for ($i = 0, $end = sizeof($post_list); $i < $end; ++$i)
 		'EDIT_REASON'		=> $row['post_edit_reason'],
 		'BUMPED_MESSAGE'	=> $l_bumped_by,
 
-		'MINI_POST_IMG'			=> ($post_unread) ? $user->img('icon_post_target_unread', 'NEW_POST') : $user->img('icon_post_target', 'POST'),
+		'MINI_POST_IMG'			=> ($post_unread) ? $user->img('icon_post_target_unread', 'UNREAD_POST') : $user->img('icon_post_target', 'POST'),
 		'POST_ICON_IMG'			=> ($topic_data['enable_icons'] && !empty($row['icon_id'])) ? $icons[$row['icon_id']]['img'] : '',
 		'POST_ICON_IMG_WIDTH'	=> ($topic_data['enable_icons'] && !empty($row['icon_id'])) ? $icons[$row['icon_id']]['width'] : '',
 		'POST_ICON_IMG_HEIGHT'	=> ($topic_data['enable_icons'] && !empty($row['icon_id'])) ? $icons[$row['icon_id']]['height'] : '',
@@ -2558,10 +2630,10 @@ for ($i = 0, $end = sizeof($post_list); $i < $end; ++$i)
 		'ONLINE_IMG'			=> ($poster_id == ANONYMOUS || !$config['load_onlinetrack']) ? '' : (($user_cache[$poster_id]['online']) ? $user->img('icon_user_online', 'ONLINE') : $user->img('icon_user_offline', 'OFFLINE')),
 		'S_ONLINE'				=> ($poster_id == ANONYMOUS || !$config['load_onlinetrack']) ? false : (($user_cache[$poster_id]['online']) ? true : false),
 
-		'U_EDIT'			=> (!$user->data['is_registered']) ? '' : ((($user->data['user_id'] == $poster_id && $auth->acl_get('f_edit', $forum_id) && ($row['post_time'] > time() - ($config['edit_time'] * 60) || !$config['edit_time'])) || $auth->acl_get('m_edit', $forum_id)) ? append_sid("{$phpbb_root_path}posting.$phpEx", "mode=edit&amp;f=$forum_id&amp;p={$row['post_id']}") : ''),
-		'U_QUOTE'			=> ($auth->acl_get('f_reply', $forum_id)) ? append_sid("{$phpbb_root_path}posting.$phpEx", "mode=quote&amp;f=$forum_id&amp;p={$row['post_id']}") : '',
+		'U_EDIT'			=> ($edit_allowed) ? append_sid("{$phpbb_root_path}posting.$phpEx", "mode=edit&amp;f=$forum_id&amp;p={$row['post_id']}") : '',
+		'U_QUOTE'			=> ($quote_allowed) ? append_sid("{$phpbb_root_path}posting.$phpEx", "mode=quote&amp;f=$forum_id&amp;p={$row['post_id']}") : '',
 		'U_INFO'			=> ($auth->acl_get('m_info', $forum_id)) ? append_sid("{$phpbb_root_path}mcp.$phpEx", "i=main&amp;mode=post_details&amp;f=$forum_id&amp;p=" . $row['post_id'], true, $user->session_id) : '',
-		'U_DELETE'			=> (!$user->data['is_registered']) ? '' : ((($user->data['user_id'] == $poster_id && $auth->acl_get('f_delete', $forum_id) && $topic_data['topic_last_post_id'] == $row['post_id'] && !$row['post_edit_locked'] && ($row['post_time'] > time() - ($config['edit_time'] * 60) || !$config['edit_time'])) || $auth->acl_get('m_delete', $forum_id)) ? append_sid("{$phpbb_root_path}posting.$phpEx", "mode=delete&amp;f=$forum_id&amp;p={$row['post_id']}") : ''),
+		'U_DELETE'			=> ($delete_allowed) ? append_sid("{$phpbb_root_path}posting.$phpEx", "mode=delete&amp;f=$forum_id&amp;p={$row['post_id']}") : '',
 
 		'U_PROFILE'		=> $user_cache[$poster_id]['profile'],
 		'U_SEARCH'		=> $user_cache[$poster_id]['search'],
@@ -2584,6 +2656,7 @@ for ($i = 0, $end = sizeof($post_list); $i < $end; ++$i)
 		'U_WARN'			=> ($auth->acl_get('m_warn') && $poster_id != $user->data['user_id'] && $poster_id != ANONYMOUS) ? append_sid("{$phpbb_root_path}mcp.$phpEx", 'i=warn&amp;mode=warn_post&amp;f=' . $forum_id . '&amp;p=' . $row['post_id'], true, $user->session_id) : '',
 
 		'POST_ID'			=> $row['post_id'],
+		'POST_NUMBER'		=> $i + $start + 1,
 		'POSTER_ID'			=> $poster_id,
 
 		'S_HAS_ATTACHMENTS'	=> (!empty($attachments[$row['post_id']])) ? true : false,
@@ -2652,13 +2725,34 @@ if (isset($user->data['session_page']) && !$user->data['is_bot'] && (strpos($use
 	}
 }
 
+// Get last post time for all global announcements
+// to keep proper forums tracking
+if ($topic_data['topic_type'] == POST_GLOBAL)
+{
+	$sql = 'SELECT topic_last_post_time as forum_last_post_time
+		FROM ' . TOPICS_TABLE . '
+		WHERE forum_id = 0
+		ORDER BY topic_last_post_time DESC';
+	$result = $db->sql_query_limit($sql, 1);
+	$topic_data['forum_last_post_time'] = (int) $db->sql_fetchfield('forum_last_post_time');
+	$db->sql_freeresult($result);
+
+	$sql = 'SELECT mark_time as forum_mark_time
+		FROM ' . FORUMS_TRACK_TABLE . '
+		WHERE forum_id = 0
+			AND user_id = ' . $user->data['user_id'];
+	$result = $db->sql_query($sql);
+	$topic_data['forum_mark_time'] = (int) $db->sql_fetchfield('forum_mark_time');
+	$db->sql_freeresult($result);
+}
+
 // Only mark topic if it's currently unread. Also make sure we do not set topic tracking back if earlier pages are viewed.
 if (isset($topic_tracking_info[$topic_id]) && $topic_data['topic_last_post_time'] > $topic_tracking_info[$topic_id] && $max_post_time > $topic_tracking_info[$topic_id])
 {
-	markread('topic', $forum_id, $topic_id, $max_post_time);
+	markread('topic', (($topic_data['topic_type'] == POST_GLOBAL) ? 0 : $forum_id), $topic_id, $max_post_time);
 
 	// Update forum info
-	$all_marked_read = update_forum_tracking_info($forum_id, $topic_data['forum_last_post_time'], (isset($topic_data['forum_mark_time'])) ? $topic_data['forum_mark_time'] : false, false);
+	$all_marked_read = update_forum_tracking_info((($topic_data['topic_type'] == POST_GLOBAL) ? 0 : $forum_id), $topic_data['forum_last_post_time'], (isset($topic_data['forum_mark_time'])) ? $topic_data['forum_mark_time'] : false, false);
 }
 else
 {
@@ -2700,6 +2794,51 @@ else if (!$all_marked_read)
 	}
 }
 
+// let's set up quick_reply
+$s_quick_reply = false;
+if ($user->data['is_registered'] && $config['allow_quick_reply'] && ($topic_data['forum_flags'] & FORUM_FLAG_QUICK_REPLY) && $auth->acl_get('f_reply', $forum_id))
+{
+	// Quick reply enabled forum
+	$s_quick_reply = (($topic_data['forum_status'] == ITEM_UNLOCKED && $topic_data['topic_status'] == ITEM_UNLOCKED) || $auth->acl_get('m_edit', $forum_id)) ? true : false;
+}
+
+if ($s_can_vote || $s_quick_reply)
+{
+	add_form_key('posting');
+
+	if ($s_quick_reply)
+	{
+		$s_attach_sig	= $config['allow_sig'] && $user->optionget('attachsig') && $auth->acl_get('f_sigs', $forum_id) && $auth->acl_get('u_sig');
+		$s_smilies		= $config['allow_smilies'] && $user->optionget('smilies') && $auth->acl_get('f_smilies', $forum_id);
+		$s_bbcode		= $config['allow_bbcode'] && $user->optionget('bbcode') && $auth->acl_get('f_bbcode', $forum_id);
+		$s_notify		= $config['allow_topic_notify'] && ($user->data['user_notify'] || $s_watching_topic['is_watching']);
+
+		$qr_hidden_fields = array(
+			'topic_cur_post_id'		=> (int) $topic_data['topic_last_post_id'],
+			'lastclick'				=> (int) time(),
+			'topic_id'				=> (int) $topic_data['topic_id'],
+			'forum_id'				=> (int) $forum_id,
+		);
+
+		// Originally we use checkboxes and check with isset(), so we only provide them if they would be checked
+		(!$s_bbcode)					? $qr_hidden_fields['disable_bbcode'] = 1		: true;
+		(!$s_smilies)					? $qr_hidden_fields['disable_smilies'] = 1		: true;
+		(!$config['allow_post_links'])	? $qr_hidden_fields['disable_magic_url'] = 1	: true;
+		($s_attach_sig)					? $qr_hidden_fields['attach_sig'] = 1			: true;
+		($s_notify)						? $qr_hidden_fields['notify'] = 1				: true;
+		($topic_data['topic_status'] == ITEM_LOCKED) ? $qr_hidden_fields['lock_topic'] = 1 : true;
+
+		$template->assign_vars(array(
+			'S_QUICK_REPLY'			=> true,
+			'U_QR_ACTION'			=> append_sid("{$phpbb_root_path}posting.$phpEx", "mode=reply&amp;f=$forum_id&amp;t=$topic_id"),
+			'QR_HIDDEN_FIELDS'		=> build_hidden_fields($qr_hidden_fields),
+			'SUBJECT'				=> 'Re: ' . censor_text($topic_data['topic_title']),
+		));
+	}
+}
+// now I have the urge to wash my hands :(
+
+
 // We overwrite $_REQUEST['f'] if there is no forum specified
 // to be able to display the correct online list.
 // One downside is that the user currently viewing this topic/post is not taken into account.
@@ -2708,9 +2847,14 @@ if (empty($_REQUEST['f']))
 	$_REQUEST['f'] = $forum_id;
 }
 
+// We need to do the same with the topic_id. See #53025.
+if (empty($_REQUEST['t']) && !empty($topic_id))
+{
+	$_REQUEST['t'] = $topic_id;
+}
 
 // Output the page
-page_header($user->lang['VIEW_TOPIC'] . ' - ' . $topic_data['topic_title']);
+page_header($user->lang['VIEW_TOPIC'] . ' - ' . $topic_data['topic_title'], true, $forum_id);
 
 $template->set_filenames(array(
 	'body' => ($view == 'print') ? 'viewtopic_print.html' : 'viewtopic_body.html')
