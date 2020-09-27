@@ -142,3 +142,22 @@ CREATE TABLE `jatekszervezes_sites` (
 ) ENGINE=MyISAM  DEFAULT CHARSET=latin1 COLLATE=latin1_general_ci AUTO_INCREMENT=22 ;
 
 -- --------------------------------------------------------
+
+CREATE TABLE `jatekszervezes_profile_fields_data` (
+  `user_id` mediumint(8) unsigned NOT NULL default '0',
+  `pf_fegyvereim` text collate utf8_bin,
+  `pf_felszerelesem` text collate utf8_bin,
+  `pf_jatekstilus` mediumint(8) default NULL,
+  `pf_airsoftozokezota` varchar(10) collate utf8_bin default NULL,
+  `pf_elodleges` varchar(255) collate utf8_bin default NULL,
+  `pf_masodlagos` varchar(255) collate utf8_bin default NULL,
+  `pf_elodleges_fps` bigint(20) default NULL,
+  `pf_masodlagos_fps` bigint(20) default NULL,
+  `pf_csapattagsag` varchar(255) collate utf8_bin default NULL,
+  `pf_longt` varchar(255) collate utf8_bin default NULL,
+  `pf_lat` varchar(255) collate utf8_bin default NULL,
+  `pf_minimalmod` tinyint(2) default NULL,
+  `pf_autojel` tinyint(2) default NULL,
+  PRIMARY KEY  (`user_id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+

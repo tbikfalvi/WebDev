@@ -1053,7 +1053,7 @@ if ($jsz == 30)
 	$jel_refresh	= $db->sql_escape(utf8_normalize_nfc(request_var('submit','',true)));
 	
 	//save personal template
-	$sql = "UPDATE " . $table_prefix . "profile_fields_data SET pf_elodleges='$weap_m', pf_masodlagos='$weap_s', pf_elodleges_fps='$fps_m', 				pf_masodlagos_fps='$fps_s', pf_csapattagsag='$team' WHERE user_id=$userid";
+	$sql = "UPDATE jatekszervezes_profile_fields_data SET pf_elodleges='$weap_m', pf_masodlagos='$weap_s', pf_elodleges_fps='$fps_m',	pf_masodlagos_fps='$fps_s', pf_csapattagsag='$team' WHERE user_id=$userid";
 	$db->sql_query($sql);
 
 /*	
@@ -1158,7 +1158,7 @@ $db->sql_freeresult($result);
 
 
 //load personal template
-$sql = "SELECT * FROM " . $table_prefix . "profile_fields_data WHERE user_id=$userid"; 
+$sql = "SELECT * FROM jatekszervezes_profile_fields_data WHERE user_id=$userid"; 
 $result = $db->sql_query_limit($sql, 1);
 $row = $db->sql_fetchrow($result);
 $us_lat		=  $row['pf_longt'];
