@@ -1,0 +1,309 @@
+/*
++---------------------------------------------------------------+
+|	bikfalvi website system
+|
+|	Tamas Bikfalvi 2007
+|	http://www.bikfalvi.hu
+|	bikfalvi.tamas@bikfalvi.hu
+|
++---------------------------------------------------------------+
+*/
+
+body
+{
+	background-color: #F4F4D1;
+	margin: 0px;
+	padding: 0px;
+	font-family:"Times New Roman", Times, serif;
+	/*background-color: #FFFF80;	/* halványsárga */
+	/*color: #800000; 						/* bordo */
+}
+
+table.alap 
+{
+	width: 980px;
+	margin: 0px auto 0px 0px;
+}
+
+table.alap td 
+{
+	vertical-align: top;
+	font-family:"Times New Roman", Times, serif;
+}
+
+td.fej_bal 
+{
+	background-image:url(../images/alap_01.gif);
+	width: 199px;
+	height: 218px;
+}
+
+td.fej_jobb 
+{
+	background-image:url(../images/alap_02.gif);
+	width: 781px;
+	height: 218px;
+}
+
+td.tartalom_bal 
+{
+	background-image:url(../images/alap_03.gif);
+	width: 119px;	
+}
+
+td.tartalom_jobb 
+{
+	background-image:url(../images/alap_04.gif);
+	width: 781px;	
+}
+
+td.lab_bal 
+{
+	background-image:url(../images/alap_05.gif);
+	width: 119px;	
+	height: 108px;
+}
+
+td.lab_jobb 
+{
+	background-image:url(../images/alap_06.gif);
+	width: 781px;	
+	height: 108px;
+}
+
+/*----------fejléc------------*/
+td.fej_jobb div.login 
+{
+	width: 500px;
+	height: 30px;
+	position:absolute;
+	margin-top: 30px;
+	margin-left: 10px;
+	/*background-color: #CCFF00;*/
+}
+
+td.fej_jobb div.hirdetes 
+{
+	width: 245px;
+	height: 70px;
+	position:absolute;
+	margin-top: 30px;
+	margin-left: 510px;
+	/*background-color: #336699;*/
+}
+
+td.fej_jobb div.datumido 
+{
+	width: 300px;
+	height: 25px;
+	position:absolute;
+	margin-top: 127px;
+	margin-left: 440px;
+	text-align: right;
+	color: #f4f4d1;
+	/*background-color: #CCFF00;*/
+}
+
+td.fej_jobb div.menu 
+{
+	width: 700px;
+	height: 25px;
+	position:absolute;
+	margin-top: 180px;
+	margin-left: 30px;
+	/*background-color:#009966;*/
+	color: #777;
+}
+
+/*----------baloldal tartalom------------*/
+td.tartalom_bal div.bal
+{
+	width: 160px;
+	/*background-color:#000099;*/
+	margin-left: 30px;
+	overflow-x: hidden;
+	color: #f4f4d1;
+}
+
+/*----------jobboldal tartalom------------*/
+td.tartalom_jobb div.jobb
+{
+	width: 700px;
+	/*background-color:#000099;*/
+	margin-left: 30px;
+	overflow-x: hidden;
+}
+
+/*------------lablac----------------------*/
+td.lab_jobb div.menu 
+{
+	width: 700px;
+	height: 25px;
+	position:absolute;
+	margin-top: 60px;
+	margin-left: 30px;
+	/*background-color:#009966;*/
+	color: #777;
+}
+
+/* Aktualis oldal cime*/
+#caption_page
+{
+  font-size: 20px;
+  font-weight: bold;
+  color: #0080FF;
+  padding: 3px 0px;
+}
+
+#galeria
+{
+  clear: left;
+}
+
+img
+{
+	border: 0px;
+}
+
+.newstitle
+{
+  color: #990000;
+  font-weight: bold;
+}
+
+.newsdate
+{
+  font-size: 9px;
+  font-weight: bold;
+}
+
+.newssum
+{
+  color: #0080FF;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.remark
+{
+  font-size: 10px;
+  color: #FF0000;
+}
+
+/*--- urlap eredmeny megjelenites -----------------*/
+
+.error_group
+{
+  padding: 5px 10px 5px 5px;
+  border: 2px solid;
+  border-left-color: #FFCCCC;
+  border-top-color: #FFCCCC;
+  border-right-color: #FF3C3C;
+  border-bottom-color: #FF3C3C;
+  float: left;
+  clear: left;
+  margin-top: 15px;
+}
+
+.success_group
+{
+  padding: 5px 10px 5px 5px;
+  border: 2px solid;
+  border-left-color: #CCFFCC;
+  border-top-color: #CCFFCC;
+  border-right-color: #3CFF3C;
+  border-bottom-color: #3CFF3C;
+  float: left;
+  clear: left;
+  margin-top: 15px;
+}
+
+/*--- urlap megjelenites -----------------*/
+
+.form_group_span
+{
+  position: relative;
+  left: 10px;
+  top: -20px;
+  padding: 2px 4px;
+  background: white;
+  border: 2px solid;
+  border-left-color: #CCCCFF;
+  border-top-color: #CCCCFF;
+  border-right-color: #6699FF;
+  border-bottom-color: #6699FF;
+}
+
+.form_group
+{
+  border: 2px solid;
+  float: left;
+  clear: left;
+  border-left-color: #CCCCFF;
+  border-top-color: #CCCCFF;
+  border-right-color: #6699FF;
+  border-bottom-color: #6699FF;
+  margin-top: 15px;
+  margin-bottom: 10px;
+  padding: 10px;
+}
+
+.group 
+{
+  padding: 2px 0px;
+}
+
+.groupname 
+{
+  width: 200px;
+  float: left;
+}
+
+.form_group li
+{
+  list-style: none;
+  clear: left;
+}
+
+.list_id
+{
+  width: 30px;
+  float: left;
+  text-align: center;
+}
+
+.list_name
+{
+  width: 150px;
+  float: left;
+}
+
+.list_image
+{
+  width: 150px;
+  float: left;
+}
+
+.list_action
+{
+  width: 50px;
+  float: left;
+}
+
+#showhidelist
+{
+  position: relative;
+  top: 3px;
+  left: -34px;
+  /*width: 150px;*/
+  padding: 2px 4px;
+  background: white;
+  border: 2px solid;
+  border-left-color: #CCCCFF;
+  border-top-color: #CCCCFF;
+  border-right-color: #6699FF;
+  border-bottom-color: #6699FF;
+  float: left;
+  cursor: pointer; cursor: hand;
+}
+

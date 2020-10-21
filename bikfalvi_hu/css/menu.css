@@ -1,0 +1,97 @@
+/*
++---------------------------------------------------------------+
+|	bikfalvi website system
+|
+|	Tamas Bikfalvi 2007
+|	http://www.bikfalvi.hu
+|	bikfalvi.tamas@bikfalvi.hu
+|
++---------------------------------------------------------------+
+*/
+
+#bikmenu 
+{
+  position: relative;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: left;
+  width: 100%;
+  float: left;
+white-space: nowrap;
+}
+
+#bikmenu ul 
+{
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+#bikmenu a 
+{
+  font-weight: bold;
+  display: block;
+  margin: 0;
+  color: #006633;
+  text-decoration: none;
+}
+
+#bikmenu a:hover 
+{
+  color: #990000;
+  background-color: #EBEBA9;
+}
+
+#bikmenu li 
+{
+  position: relative;
+  float: left;
+  padding: 0px 3px;
+  /*width: 70px;*/
+}
+
+#bikmenu ul ul 
+{
+  position: absolute;
+  top: 18px;
+  left: 0px;
+  display: none;
+  background-color: #F4F4D1;
+  border: 1px solid #EAEAC7;
+}
+
+#bikmenu ul ul li 
+{
+  border: 1px solid #EAEAC7;
+  padding: 2px;
+  float: none;
+}
+
+#bikmenu ul li:hover ul
+{
+  display: block;
+}
+
+body 
+{
+  behavior: url('csshover.htc');
+} 
+
+/*
+[if IE]
+body 
+{
+  behavior: url('csshover.htc');
+} 
+
+#bikmenu ul li 
+{
+  width: 70px;
+}
+ 
+#bikmenu ul li a 
+{
+  height: 1%;
+} 
+[endif]
+*/

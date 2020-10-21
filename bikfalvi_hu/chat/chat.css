@@ -1,0 +1,112 @@
+/*
++---------------------------------------------------------------+
+|	Bikfalvi chatbox system
+|
+|	http://www.bikfalvi.hu
+|	bikfalvi.tamas@bikfalvi.hu
+|
++---------------------------------------------------------------+
+*/
+
+body
+{
+	margin: 0px;
+	padding: 0px;
+	font-family:"Times New Roman", Times, serif;
+  font-size: 11px;
+	/*background-color: #FFFF80;	/* halványsárga */
+	/*color: #800000; 						/* bordo */
+}
+
+/****************************************************************
+* Post page sections
+*****************************************************************/
+
+.post_username
+{
+  font-size: 10px;
+	font-weight: bold;
+	clear: left;
+}
+
+.post_textarea
+{
+	background-color: #F4F4D1;
+	width: 100%;
+  font-size: 11px;
+}
+
+.post_submit_button
+{
+  height: 18px;
+  font-size: 8px;
+  font-weight: bold;
+}
+
+/****************************************************************
+* Show page sections
+*****************************************************************/
+
+#chat_messages
+{
+	background-color: #F4F4D1;
+	width: 100%;
+	height: 100%;
+}
+
+/****************************************************************
+* Show page sections
+*****************************************************************/
+
+.username_light
+{
+  color: #F4F4D1;
+  font-size: 10px;
+	font-weight: bold;
+}
+
+.post
+{
+  font-size: 11px;
+}
+
+.text_light
+{
+  color: #F4F4D1;
+  font-size: 11px;
+  text-align: center;
+}
+
+.postdate
+{
+  font-size: 9px;
+  font-weight: bold;
+}
+
+.button
+{
+  height: 18px;
+  font-size: 8px;
+  font-weight: bold;
+}
+
+/* Aktualis oldal cime*/
+#caption
+{
+  font-size: 20px;
+  font-weight: bold;
+  color: #0080FF;
+  padding: 3px 0px;
+}
+
+.group
+{
+  padding: 5px 0px;
+}
+
+.groupname 
+{
+  width: 130px;
+  float: left;
+}
+

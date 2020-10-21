@@ -1,0 +1,102 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html>
+<head>
+<title>CSS menü</title>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-2">
+<style type="text/css">
+
+#bikmenu 
+{
+  position: relative;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: left;
+  width: 100%;
+  float: left;
+white-space: nowrap;
+}
+
+#bikmenu ul 
+{
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+#bikmenu a 
+{
+  font-weight: bold;
+  display: block;
+  margin: 0;
+  color: #006633;
+  text-decoration: none;
+}
+
+#bikmenu a:hover 
+{
+  color: #990000;
+/*  background-color: #FFCC00;*/
+}
+
+#bikmenu li 
+{
+  position: relative;
+  float: left;
+  padding: 0px 3px;
+  /*width: 70px;*/
+}
+
+#bikmenu ul ul 
+{
+  position: absolute;
+  top: 18px;
+  left: 0px;
+  display: none;
+  background-color: #F4F4D1;
+  border: 1px solid #EAEAC7;
+}
+
+#bikmenu ul ul li 
+{
+  border: 1px solid #EAEAC7;
+  padding: 2px;
+  /*width: 100px;*/
+  float: none;
+}
+
+#bikmenu ul li:hover ul
+{
+  display: block;
+}
+
+body 
+{
+  behavior: url('csshover.htc');
+} 
+
+</style>
+
+</head>
+
+<body>
+<div id="bikmenu">
+    <ul>
+        <li><a href="#">Első</a></li>
+
+        <li><a href="#">Második hosszú</a>
+            <ul>
+                <li><a href="#">Második almenü</a></li>
+            </ul>
+        </li>
+        <li><a href="#">Harmadik</a>
+            <ul>
+                <li><a href="#">Harmadik 1</a></li>
+                <li><a href="#">Harmadik 2 hosszú</a></li>
+                <li><a href="#">Harm.</a></li>
+            </ul>
+        </li>
+    </ul>
+</div>
+</body>
+
+</html>
