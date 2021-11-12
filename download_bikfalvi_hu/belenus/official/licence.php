@@ -165,11 +165,11 @@ if( isset($_GET['blns']) )
 	
 	if( strstr( $GLOBALS['licences'], $_GET['blns'] ) )
 	{
-		fnShowPage( "licence_found" );
+		fnShowPage( "licence_integrity_ok" );
 	}
 	else
 	{
-		fnShowPage( "licence_not_found" );
+		fnShowPage( "licence_integrity_broken" );
 	}
 }
 else
